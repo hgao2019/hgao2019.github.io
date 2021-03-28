@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://hgao2019.github.io</id>
     <title>Jack笔记</title>
-    <updated>2021-03-28T09:35:59.323Z</updated>
+    <updated>2021-03-28T10:22:05.411Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://hgao2019.github.io"/>
     <link rel="self" href="https://hgao2019.github.io/atom.xml"/>
@@ -10,4 +10,144 @@
     <logo>https://hgao2019.github.io/images/avatar.png</logo>
     <icon>https://hgao2019.github.io/favicon.ico</icon>
     <rights>All rights reserved 2021, Jack笔记</rights>
+    <entry>
+        <title type="html"><![CDATA[定时器管理]]></title>
+        <id>https://hgao2019.github.io/post/ding-shi-qi-guan-li/</id>
+        <link href="https://hgao2019.github.io/post/ding-shi-qi-guan-li/">
+        </link>
+        <updated>2021-03-28T09:36:31.000Z</updated>
+        <content type="html"><![CDATA[<p>最近阅读了一部分<a href="https://github.com/taosdata/tdengine">TDEngine</a>源码，将一些内容记录下来，方便后面阅读。<br>
+定时器的管理操作一般是操作系统的工作，而TDEngine独立实现了定时器，推测是为了形成独立闭环系统，增加可靠性。<br>
+代码里面ttimer.c实现通用定时器功能，使用类似时间轮算法。</p>
+<h2 id="时间轮">时间轮</h2>
+<p>通用的time_wheel_t数组作为时间轮结构，总有1,2,3，在一个数组<code>time_wheel_t wheels</code>中。</p>
+<pre><code>typedef struct time_wheel_t {
+  pthread_mutex_t mutex;
+  int64_t         nextScanAt;
+  uint32_t        resolution;
+  uint16_t        size;
+  uint16_t        index;
+  tmr_obj_t**     slots;
+} time_wheel_t; 
+</code></pre>
+<p>wheel 1定义size大小4096（2^12），精度5<br>
+wheel 2定义size 大小1024(2^10)，精度1000<br>
+wheel 3定义size 大小 1024(2^10), 精度60000</p>
+<pre><code>static time_wheel_t wheels[] = {
+    {.resolution = MSECONDS_PER_TICK, .size = 4096},
+    {.resolution = 1000, .size = 1024},
+    {.resolution = 60000, .size = 1024},
+};
+</code></pre>
+<h2 id="定时器的添加">定时器的添加</h2>
+<p>首先调用taosTmrStart，初始化一个tmr_obj_t结构，然后通过调用addTimer添加到某个时间轮的队列上。<br>
+<code>tmr_obj_t* timer = (tmr_obj_t*)calloc(1, sizeof(tmr_obj_t));</code><br>
+定时器的初始化</p>
+<pre><code>  uintptr_t id = getNextTimerId();
+  timer-&gt;id = id;
+  timer-&gt;state = TIMER_STATE_WAITING;
+  timer-&gt;fp = fp;
+  timer-&gt;param = param;
+  timer-&gt;ctrl = ctrl;
+</code></pre>
+<p>然后将计时器加入到定时器list中。</p>
+<pre><code>static void addTimer(tmr_obj_t* timer) {
+  timerAddRef(timer);
+  timer-&gt;wheel = tListLen(wheels);
+
+  uint32_t      idx = (uint32_t)(timer-&gt;id % timerMap.size);
+  timer_list_t* list = timerMap.slots + idx;
+
+  lockTimerList(list);
+  timer-&gt;mnext = list-&gt;timers;
+  list-&gt;timers = timer;
+  unlockTimerList(list);
+}
+</code></pre>
+<p>对于立即执行(mseconds=0)的添加到超时列表进行执行。<br>
+其它按照计算加入到wheel中。</p>
+<pre><code>  if (mseconds == 0) {
+    timer-&gt;wheel = tListLen(wheels);
+    timerAddRef(timer);
+    addToExpired(timer);
+  } else {
+    addToWheel(timer, mseconds);
+  }
+</code></pre>
+<h2 id="定时器添加到时间轮">定时器添加到时间轮</h2>
+<p>根据delay时间遍历查找到最近wheel。</p>
+<pre><code>for (uint8_t i = 0; i &lt; tListLen(wheels); i++) {
+    time_wheel_t* wheel = wheels + i;
+    if (delay &lt; wheel-&gt;resolution * wheel-&gt;size) {
+      timer-&gt;wheel = i;
+      break;
+    }
+  }
+</code></pre>
+<p>设置超时时间<br>
+<code>timer-&gt;expireAt = getMonotonicMs() + delay;</code></p>
+<p>slot的设置。</p>
+<pre><code>  uint32_t idx = 0;
+  if (timer-&gt;expireAt &gt; wheel-&gt;nextScanAt) {
+    // adjust delay according to next scan time of this wheel
+    // so that the timer is not fired earlier than desired.
+    delay = (uint32_t)(timer-&gt;expireAt - wheel-&gt;nextScanAt);
+    idx = (delay + wheel-&gt;resolution - 1) / wheel-&gt;resolution;
+  }
+
+  timer-&gt;slot = (uint16_t)((wheel-&gt;index + idx + 1) % wheel-&gt;size);
+  tmr_obj_t* p = wheel-&gt;slots[timer-&gt;slot];
+  wheel-&gt;slots[timer-&gt;slot] = timer;
+</code></pre>
+<p>注意到的是为了防止expireAt超过nextScanAt情况，进行了特殊处理。</p>
+<h2 id="timer的调度">timer的调度</h2>
+<p>通过固定时间调用taosTimerLoopFunc（5us）来实现的。<br>
+讲所有轮子超时的定时器加入到一个栈中，然后传递给超时处理模块。</p>
+<p>先看是否超过轮子的nextScanAt，然后再遍历轮子上定时器，超时则放入临时超时定时器栈。</p>
+<pre><code>while (now &gt;= wheel-&gt;nextScanAt) {
+      pthread_mutex_lock(&amp;wheel-&gt;mutex);
+      wheel-&gt;index = (wheel-&gt;index + 1) % wheel-&gt;size;
+      tmr_obj_t* timer = wheel-&gt;slots[wheel-&gt;index];
+      while (timer != NULL) {
+        tmr_obj_t* next = timer-&gt;next;
+        if (now &lt; timer-&gt;expireAt) {
+          timer = next;
+          continue;
+        }
+
+        // remove from the wheel
+        if (timer-&gt;prev == NULL) {
+          wheel-&gt;slots[wheel-&gt;index] = next;
+          if (next != NULL) {
+            next-&gt;prev = NULL;
+          }
+        } else {
+          timer-&gt;prev-&gt;next = next;
+          if (next != NULL) {
+            next-&gt;prev = timer-&gt;prev;
+          }
+        }
+        timer-&gt;wheel = tListLen(wheels);
+
+        // add to temporary expire list
+        timer-&gt;next = expired;
+        timer-&gt;prev = NULL;
+        if (expired != NULL) {
+          expired-&gt;prev = timer;
+        }
+        expired = timer;
+
+        timer = next;
+      }
+      wheel-&gt;nextScanAt += wheel-&gt;resolution;
+      pthread_mutex_unlock(&amp;wheel-&gt;mutex);
+    }
+    ```
+## 总结
+参考linux中定时器的文章，里面的定时器轮涉及到时间轮的操作。相比而言，TDEngine时间轮定时器就简单一些了。
+
+
+</code></pre>
+]]></content>
+    </entry>
 </feed>
