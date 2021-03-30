@@ -2,28 +2,19 @@
   <head>
     <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>关于 | Jack笔记</title>
+<title>一条sql语句的处理 | Jack笔记</title>
 <link rel="shortcut icon" href="https://hgao2019.github.io/favicon.ico?v=1617107327123">
 <link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
 <link rel="stylesheet" href="https://hgao2019.github.io/styles/main.css">
-<link rel="alternate" type="application/atom+xml" title="关于 | Jack笔记 - Atom Feed" href="https://hgao2019.github.io/atom.xml">
+<link rel="alternate" type="application/atom+xml" title="一条sql语句的处理 | Jack笔记 - Atom Feed" href="https://hgao2019.github.io/atom.xml">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
 
 
 
-    <meta name="description" content="
-欢迎，很高兴遇见你！🤝
-
-🏠 关于本站
-日常的一些学习笔记。
-👨‍💻 博主是谁
-码农一枚，理工技术宅
-⛹ 兴趣爱好
-编程
-📬 联系我呀
-email: 370045336@qq.com
-..." />
-    <meta name="keywords" content="" />
+    <meta name="description" content="继续阅读TDEngine代码。作为数据库，查询等sql操作是常用的。理了下从shell提交到服务器处理的过程，记录一下。
+shell提交
+shell提交查询的过程，专门的输入端处理程序，将提交的数据分析，如果是需要提交到服务器，进行sql语..." />
+    <meta name="keywords" content="sql,TDEngine" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
     <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
   </head>
@@ -85,41 +76,48 @@ email: 370045336@qq.com
         <div class="post-detail">
           <article class="post">
             <h2 class="post-title">
-              关于
+              一条sql语句的处理
             </h2>
             <div class="post-info">
               <span>
-                2019-01-25
+                2021-03-30
               </span>
               <span>
                 1 min read
               </span>
               
+                <a href="https://hgao2019.github.io/tag/GjOTR3vh8/" class="post-tag">
+                  # sql
+                </a>
+              
+                <a href="https://hgao2019.github.io/tag/CSHUsyRa1B/" class="post-tag">
+                  # TDEngine
+                </a>
+              
             </div>
+            
+              <img class="post-feature-image" src="https://hgao2019.github.io/post-images/yi-tiao-sql-yu-ju-de-chu-li.jpg" alt="">
             
             <div class="post-content-wrapper">
               <div class="post-content">
-                <blockquote>
-<p>欢迎，很高兴遇见你！🤝</p>
-</blockquote>
-<h2 id="关于本站">🏠 关于本站</h2>
-<p>日常的一些学习笔记。</p>
-<h2 id="博主是谁">👨‍💻 博主是谁</h2>
-<p>码农一枚，理工技术宅</p>
-<h2 id="兴趣爱好">⛹ 兴趣爱好</h2>
-<p>编程</p>
-<h2 id="联系我呀">📬 联系我呀</h2>
-<p>email: 370045336@qq.com</p>
+                <p>继续阅读<a href="https://github.com/taosdata/tdengin">TDEngine</a>代码。作为数据库，查询等sql操作是常用的。理了下从shell提交到服务器处理的过程，记录一下。</p>
+<h2 id="shell提交">shell提交</h2>
+<p>shell提交查询的过程，专门的输入端处理程序，将提交的数据分析，如果是需要提交到服务器，进行sql语法分析，将sql指令对应到命令。构造使用于rpc通信Msg消息，服务器发送消息，然后阻塞等待。<br>
+<img src="https://hgao2019.github.io/post-images/1617106957423.png" alt="" loading="lazy"></p>
+<h2 id="系统接收">系统接收</h2>
+<p>系统初始化，包括rpc服务在内的所有模块初始化。调用rpcOpen函数，初始化连接taosInitConn，系统存在两种（TCP和UDP）分别处理，建立定时器和连接。每个连接处于等待消息过程。当tcp或者udp数据发送到服务器时，启动处理程序taosProcessTcpData或者taosProcessUdpData，分配到rpcProcessMsgFormPeer相应模块处理。<br>
+<img src="https://hgao2019.github.io/post-images/1617107034867.png" alt="" loading="lazy"></p>
+<h2 id="总结">总结</h2>
+<p>以上只是粗略的过程，实际更负责。</p>
 
               </div>
               <div class="toc-container">
                 <ul class="markdownIt-TOC">
 <li>
 <ul>
-<li><a href="#%E5%85%B3%E4%BA%8E%E6%9C%AC%E7%AB%99">🏠 关于本站</a></li>
-<li><a href="#%E5%8D%9A%E4%B8%BB%E6%98%AF%E8%B0%81">👨‍💻 博主是谁</a></li>
-<li><a href="#%E5%85%B4%E8%B6%A3%E7%88%B1%E5%A5%BD">⛹ 兴趣爱好</a></li>
-<li><a href="#%E8%81%94%E7%B3%BB%E6%88%91%E5%91%80">📬 联系我呀</a></li>
+<li><a href="#shell%E6%8F%90%E4%BA%A4">shell提交</a></li>
+<li><a href="#%E7%B3%BB%E7%BB%9F%E6%8E%A5%E6%94%B6">系统接收</a></li>
+<li><a href="#%E6%80%BB%E7%BB%93">总结</a></li>
 </ul>
 </li>
 </ul>
@@ -129,6 +127,15 @@ email: 370045336@qq.com
           </article>
         </div>
 
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://hgao2019.github.io/post/ding-shi-qi-guan-li/">
+              <h3 class="post-title">
+                定时器管理
+              </h3>
+            </a>
+          </div>
         
 
         

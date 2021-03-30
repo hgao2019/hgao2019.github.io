@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://hgao2019.github.io</id>
     <title>Jack笔记</title>
-    <updated>2021-03-28T10:59:21.005Z</updated>
+    <updated>2021-03-30T12:28:53.830Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://hgao2019.github.io"/>
     <link rel="self" href="https://hgao2019.github.io/atom.xml"/>
@@ -10,6 +10,23 @@
     <logo>https://hgao2019.github.io/images/avatar.png</logo>
     <icon>https://hgao2019.github.io/favicon.ico</icon>
     <rights>All rights reserved 2021, Jack笔记</rights>
+    <entry>
+        <title type="html"><![CDATA[一条sql语句的处理]]></title>
+        <id>https://hgao2019.github.io/post/yi-tiao-sql-yu-ju-de-chu-li/</id>
+        <link href="https://hgao2019.github.io/post/yi-tiao-sql-yu-ju-de-chu-li/">
+        </link>
+        <updated>2021-03-30T12:18:05.000Z</updated>
+        <content type="html"><![CDATA[<p>继续阅读<a href="https://github.com/taosdata/tdengin">TDEngine</a>代码。作为数据库，查询等sql操作是常用的。理了下从shell提交到服务器处理的过程，记录一下。</p>
+<h2 id="shell提交">shell提交</h2>
+<p>shell提交查询的过程，专门的输入端处理程序，将提交的数据分析，如果是需要提交到服务器，进行sql语法分析，将sql指令对应到命令。构造使用于rpc通信Msg消息，服务器发送消息，然后阻塞等待。<br>
+<img src="https://hgao2019.github.io/post-images/1617106957423.png" alt="" loading="lazy"></p>
+<h2 id="系统接收">系统接收</h2>
+<p>系统初始化，包括rpc服务在内的所有模块初始化。调用rpcOpen函数，初始化连接taosInitConn，系统存在两种（TCP和UDP）分别处理，建立定时器和连接。每个连接处于等待消息过程。当tcp或者udp数据发送到服务器时，启动处理程序taosProcessTcpData或者taosProcessUdpData，分配到rpcProcessMsgFormPeer相应模块处理。<br>
+<img src="https://hgao2019.github.io/post-images/1617107034867.png" alt="" loading="lazy"></p>
+<h2 id="总结">总结</h2>
+<p>以上只是粗略的过程，实际更负责。</p>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[定时器管理]]></title>
         <id>https://hgao2019.github.io/post/ding-shi-qi-guan-li/</id>
